@@ -9,53 +9,54 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pickle
 
-def log_to_hostname_csv(df, save_to):
-  dff = df.copy()
-  dff['Timestamp']=[':'.join(timestamp.split('.')[0].split(':')[:-1]) for timestamp in dff['Timestamp']]
-  dff = dff[['hostid', 'MatrixID','MatrixName', 'delay', 'value', 'Timestamp']]
 
-  hostnames = dff['hostid'].unique()
-  list__df = [dff[dff['hostid']==hostnames[i]] for i in range(len(hostnames))]
+def log_to_hostname_csv(df):
+    dff = df.copy()
+    dff['Timestamp'] = [':'.join(timestamp.split('.')[0].split(':')[:-1]) for timestamp in dff['Timestamp']]
+    dff = dff[['hostid', 'MatrixID', 'MatrixName', 'delay', 'value', 'Timestamp']]
 
-  #save data to <hostname>.csv
-  for i in range(len(hostnames)):
-    list__df[i]= list__df[i].reset_index( drop=True)
-    #list__df[i]= list__df[i].drop_duplicates(subset=['HostName','Timestamp'])
-    list__df[i]['Timestamp'] = pd.to_datetime(list__df[i]['Timestamp'])
-    list__df[i].to_csv(f'{save_to}/{hostnames[i]}.csv',index=None)
+    hostnames = dff['hostid'].unique()
+    list__df = [dff[dff['hostid'] == hostnames[i]] for i in range(len(hostnames))]
 
-def check_features_before_after_resample(df,new_df,hostnames):
-  compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
-  for hostname in hostnames:
-    print(compare(list(df[hostname].keys()), list(new_df[hostname].keys())))
+    hostname_data = {}
+    for i in range(len(hostnames)):
+        list__df[i] = list__df[i].reset_index(drop=True)
+        list__df[i]['Timestamp'] = pd.to_datetime(list__df[i]['Timestamp'])
+        hostname_data[hostnames[i]] = list__df[i]
+
+    return hostname_data
+
+# def check_features_before_after_resample(df,new_df,hostnames):
+#   compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
+#   for hostname in hostnames:
+#     print(compare(list(df[hostname].keys()), list(new_df[hostname].keys())))
 
 def matrixname_row_to_column (df):
   features_dt = {}
   dff = df.copy()
   features = dff['MatrixName'].unique()
-  dff = dff[['MatrixID','MatrixName', 'delay', 'value', 'Timestamp']]
+  dff = dff[['hostid', 'hostname','MatrixID','MatrixName', 'delay', 'value', 'Timestamp']]  
   list__df = [dff[dff['MatrixName']==features[i]] for i in range(len(features))]
   for i in range(len(features)):
     list__df[i] = list__df[i].reset_index( drop=True)
     list__df[i] = list__df[i].rename(columns={'value': features[i]})
     list__df[i] = list__df[i].drop('MatrixName', axis=1)
-    list__df[i] = list__df[i].drop_duplicates(subset=['Timestamp'])
+    list__df[i] = list__df[i].drop_duplicates(subset=['hostname','Timestamp'])
     #list__df[i]['Timestamp'] = pd.to_datetime(list__df[i]['Timestamp'])
     #list__df[i]=list__df[i].set_index('Timestamp',drop=True)
+    # Debugging information
+    # print(f"Processing feature: {features[i]}")
+    # print("DataFrame head after processing feature:", list__df[i].head())
     features_dt[features[i]] = list__df[i]
   return features_dt
 
-def hostname_csv_to_feature_dict(hostnames, resample_time='60S'):
+
+def hostname_csv_to_feature_dict(hostname_data,hostnames, resample_time):
   hostname_feature_dict={}
   for hostname in hostnames:
     print(hostname)
-    csv_directory = '/kaggle/working/datasets' #path to dataset
-    hostname_df = pd.read_csv(f'{csv_directory}/{hostname}.csv', parse_dates=["Timestamp"])
-    print(hostname_df)
-    hostname_df["Timestamp"] = hostname_df["Timestamp"].dt.strftime('%m/%d/%Y %H:%M')
-    # print(hostname_df.head(10))
-    # hostname_df = hostname_df.drop(hostname_df.columns[0],axis=1)
-    # print(hostname_df.head(10))
+    hostname_df = hostname_data[hostname]
+    print(hostname_df.head(10))
     hostname_df = hostname_df.dropna()
     hostname_features = matrixname_row_to_column(hostname_df)
     for feature in hostname_features.keys():
@@ -80,7 +81,7 @@ def update_new_start_end_timestamp(df, hostnames, start_timestamp, end_timestamp
       new_feature_[feature].index = np.arange(1, len(new_feature_[feature]) + 1)
     new_df[hostname]=new_feature
     new_df_[hostname]=new_feature_
-    
+
     vis = pd.concat(new_df[hostname],axis=1)
     vis.columns = new_df[hostname].keys()
     new_df_concat[hostname]=vis
@@ -126,3 +127,13 @@ def get_start_end_timestamp(df, hostnames):
   return start_timestamp, end_timestamp
 
 
+# def hostname_df_concat(hostname):
+#   df = pd.concat(df[hostname],axis=1)
+#   df.columns = df[hostname].keys()
+#   df['Timestamp']= df.index
+#   return df
+
+# def select(data, matrixs):
+#   input = data[matrixs]
+#   return(input)
+    
